@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MacSweep</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" defer></script>
+  <style>
+    /* Inline-critical: prevent any white/black flash before styles.css applies. */
+    html, body { background: #131318; color: #f5f5f7; margin: 0; padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif; }
+    #initial-splash {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #131318;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+      transition: opacity 0.35s ease;
+    }
+    #initial-splash .mark {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: conic-gradient(from 200deg, #c4b5fd, #4ade80, #facc15, #f472b6, #c4b5fd);
+      box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset, 0 24px 64px rgba(196,181,253,.2);
+      animation: spin 6s linear infinite;
+    }
+    #initial-splash .label {
+      font-size: 12px; font-weight: 600; letter-spacing: 0.14em;
+      color: #6f6f78; text-transform: uppercase;
+    }
+    #initial-splash .splash-percent {
+      font-size: 44px; font-weight: 600; letter-spacing: -0.03em; line-height: 1;
+      margin-top: 18px;
+      font-variant-numeric: tabular-nums;
+      background: linear-gradient(135deg, #c4b5fd, #34d399 80%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    #initial-splash .splash-msg {
+      font-size: 13px; color: #8b8b9c; font-weight: 500;
+      margin-top: 4px; min-height: 18px;
+      transition: opacity 0.2s ease;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="initial-splash">
+    <div class="mark"></div>
+    <div class="label">MacSweep</div>
+    <div class="splash-percent" id="splashPercent">0%</div>
+    <div class="splash-msg" id="splashMsg">Starting up</div>
+  </div>
+  <script>
+    // Brief animated splash that runs ONLY until app.js takes over with real
+    // /api/warmup/status progress. Asymptotic creep so it never looks frozen.
+    (function() {
+      var pctEl = document.getElementById('splashPercent');
+      var msgEl = document.getElementById('splashMsg');
+      var current = 0;
+      var taken = false;
+      // Mark when app.js takes over
+      window.__splashTakeover = function() { taken = true; };
+      function tick() {
+        var splash = document.getElementById('initial-splash');
+        if (!splash || taken) return;
+        // Asymptotic creep to 30 — that's the "boot" portion before warmup status arrives.
+        current += (30 - current) * 0.04;
+        pctEl.textContent = Math.floor(current) + '%';
+        requestAnimationFrame(tick);
+      }
+      msgEl.textContent = 'Starting up';
+      requestAnimationFrame(tick);
+    })();
+  </script>
+
+  <!-- ── Empty state / Welcome ──────────────────────────────────────────── -->
+  <section id="welcome" class="welcome hidden">
+    <div class="welcome-bg"></div>
+    <div class="welcome-inner">
+      <div class="welcome-art"></div>
+      <div class="welcome-mark">MacSweep</div>
+      <h1>Reclaim your Mac.<br/><span class="welcome-accent">Without regret.</span></h1>
+      <p>Indexes every file. Groups them by what matters. Lets you decide, with full context — and gives you 30 days to change your mind.</p>
+      <button class="btn primary big" id="welcomeScanBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.51-7.13"/><path d="M21 4v5h-5"/></svg>
+        Scan my Mac
+      </button>
+      <div class="welcome-pillars">
+        <div class="welcome-pillar"><div class="wp-num">1</div><div class="wp-name">Scan</div><div class="wp-desc">Index every file in your home directory</div></div>
+        <div class="welcome-pillar"><div class="wp-num">2</div><div class="wp-name">See</div><div class="wp-desc">Where storage goes, app by app</div></div>
+        <div class="welcome-pillar"><div class="wp-num">3</div><div class="wp-name">Sweep</div><div class="wp-desc">Decide in seconds. Restore anytime.</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Scanning state ─────────────────────────────────────────────────── -->
+  <section id="scanning" class="scanning hidden">
+    <div class="scan-card">
+      <div class="scan-pulse"></div>
+      <div class="scan-percent" id="scanPercent">0%</div>
+      <div class="scan-message" id="scanMessage">Starting up…</div>
+      <div class="scan-bar"><div class="scan-bar-fill" id="scanBarFill"></div></div>
+      <div class="scan-stats">
+        <div class="scan-stat-block">
+          <div class="scan-stat-label">Files indexed</div>
+          <div class="scan-stat-value mono" id="scanStat">0</div>
+        </div>
+        <div class="scan-stat-divider"></div>
+        <div class="scan-stat-block">
+          <div class="scan-stat-label">Total size</div>
+          <div class="scan-stat-value mono" id="scanSize">0 B</div>
+        </div>
+        <div class="scan-stat-divider"></div>
+        <div class="scan-stat-block">
+          <div class="scan-stat-label">Elapsed</div>
+          <div class="scan-stat-value mono" id="scanElapsed">0s</div>
+        </div>
+      </div>
+      <div class="scan-current mono" id="scanCurrent"></div>
+    </div>
+  </section>
+
+  <!-- ── Main app ───────────────────────────────────────────────────────── -->
+  <div id="app" class="app hidden">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div class="brand-name">MacSweep</div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item" data-module="scan">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 14.5 3 21"/><path d="M14 4 4 14l4 4 10-10z"/><path d="m21 3-3 3"/></svg>
+          <span>Smart Scan</span>
+        </button>
+        <button class="nav-item" data-module="map">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20"/><path d="M12 2a14.5 14.5 0 0 1 0 20"/><path d="M2 12h20"/></svg>
+          <span>Storage Map</span>
+        </button>
+        <button class="nav-item" data-module="files">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V6a2 2 0 0 1 2-2h6l2 3h6a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>
+          <span>Files</span>
+        </button>
+        <button class="nav-item nav-special" data-module="sweep">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h6"/><path d="M22 12h-6"/><circle cx="12" cy="12" r="4"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>
+          <span>Sweep</span>
+          <span class="nav-tag">FAST</span>
+        </button>
+        <button class="nav-item" data-module="redundancies">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="13" rx="2"/><rect x="8" y="8" width="13" height="13" rx="2"/></svg>
+          <span>Redundancies</span>
+          <span class="nav-badge" id="redBadge">0</span>
+        </button>
+        <button class="nav-item" data-module="quarantine">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="m19 6-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          <span>Quarantine</span>
+          <span class="nav-badge" id="qNavBadge">0</span>
+        </button>
+      </nav>
+
+      <div class="freshness-chip" id="freshnessChip">
+        <span class="fc-dot" id="fcDot"></span>
+        <span class="fc-text" id="fcText">—</span>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="footer-stat">
+          <div class="footer-label">Indexed</div>
+          <div class="footer-value mono" id="sidebarTotal">—</div>
+        </div>
+        <div class="footer-stat">
+          <div class="footer-label">Files</div>
+          <div class="footer-value mono" id="sidebarFiles">—</div>
+        </div>
+        <div class="footer-meta" id="sidebarLast">—</div>
+        <div class="footer-buttons">
+          <button class="btn ghost grow" id="rescanBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3.51-7.13"/><path d="M21 4v5h-5"/></svg>
+            Rescan
+          </button>
+          <button class="btn ghost icon" id="settingsBtn" title="Settings">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main canvas -->
+    <main class="canvas">
+
+      <!-- ── Module: Smart Scan ─────────────────────────────────────────── -->
+      <section class="module" data-module="scan">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Smart Scan</div>
+            <h1 class="module-title">Recoverable now</h1>
+          </div>
+        </header>
+
+        <div class="stat-strip">
+          <button class="stat-cell" data-stat="used" title="What's on your disk">
+            <div class="stat-label">Disk used</div>
+            <div class="stat-value" id="statUsed">—</div>
+            <div class="stat-hint">↗ explain</div>
+          </button>
+          <button class="stat-cell" data-stat="indexed" title="What MacSweep indexed">
+            <div class="stat-label">Indexed by MacSweep</div>
+            <div class="stat-value" id="statIndexed">—</div>
+            <div class="stat-hint">↗ explain</div>
+          </button>
+          <div class="stat-cell stat-cell-static">
+            <div class="stat-label">Files</div>
+            <div class="stat-value" id="statFiles">—</div>
+          </div>
+          <div class="stat-cell stat-cell-static">
+            <div class="stat-label">Already recovered</div>
+            <div class="stat-value safe" id="statRecovered">—</div>
+          </div>
+        </div>
+
+        <div class="hero-stat">
+          <div class="hero-number" id="heroNumber">—</div>
+          <div class="hero-unit" id="heroUnit">GB</div>
+          <div class="hero-narrative" id="heroNarrative">
+            <span id="heroNarrativeText">across <span id="heroAreas">—</span> areas · nothing deleted yet</span>
+          </div>
+        </div>
+
+        <div class="suggestion-section">
+          <div class="section-label">
+            <label class="check check-master"><input type="checkbox" id="tier1SelectAll" /> <span>Select all safe</span></label>
+            <span class="grow"></span>
+            <span class="section-meta">caches, builds, trash — regenerable</span>
+          </div>
+          <div class="suggestion-list" id="tier1List"></div>
+        </div>
+
+        <div class="suggestion-section">
+          <div class="section-label">
+            <label class="check check-master"><input type="checkbox" id="tier2SelectAll" /> <span>Select all to review</span></label>
+            <span class="grow"></span>
+            <span class="section-meta">personal files — verify before removing</span>
+          </div>
+          <div class="suggestion-list" id="tier2List"></div>
+        </div>
+      </section>
+
+      <!-- ── Module: Storage Map ────────────────────────────────────────── -->
+      <section class="module hidden" data-module="map">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Storage Map</div>
+            <h1 class="module-title" id="mapTitle">Where it lives</h1>
+          </div>
+          <div class="legend" id="mapLegend"></div>
+        </header>
+
+        <div class="map-stage">
+          <div class="map-canvas" id="sunburst"></div>
+          <div class="map-detail" id="mapDetail">
+            <div class="map-detail-empty">Hover a slice to inspect.<br/>Click to add to plan.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Module: Files ──────────────────────────────────────────────── -->
+      <section class="module hidden" data-module="files">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Files</div>
+            <h1 class="module-title">Browse</h1>
+          </div>
+          <div class="tabs tabs-prominent" id="filesTabs">
+            <button class="tab active" data-tab="smart">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              Smart picks
+            </button>
+            <button class="tab" data-tab="categories">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              Categories
+            </button>
+            <button class="tab" data-tab="projects">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3l3 9-3 9 18-9-18-9z"/></svg>
+              Projects
+            </button>
+            <button class="tab" data-tab="forgotten">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              Forgotten
+            </button>
+            <button class="tab" data-tab="largest">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h6l3-9 6 18 3-9h6"/></svg>
+              Largest
+            </button>
+          </div>
+        </header>
+        <div class="files-content" id="filesContent"></div>
+      </section>
+
+      <!-- ── Module: Sweep (killer feature) ─────────────────────────────── -->
+      <section class="module hidden" data-module="sweep">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Sweep · the fast lane</div>
+            <h1 class="module-title">Decide, in seconds.</h1>
+            <div class="module-sub">One file at a time. Preview, see the source, ← Trash · → Keep · ↓ Skip · Space to open.</div>
+          </div>
+          <div class="sweep-progress">
+            <div class="sweep-progress-text" id="sweepProgressText">— / —</div>
+            <div class="sweep-progress-bar"><div class="sweep-progress-fill" id="sweepProgressFill"></div></div>
+            <div class="sweep-queued" id="sweepQueued">0 queued</div>
+          </div>
+        </header>
+        <div class="sweep-stage" id="sweepStage">
+          <div class="empty">Loading queue…</div>
+        </div>
+      </section>
+
+      <!-- ── Module: Redundancies ───────────────────────────────────────── -->
+      <section class="module hidden" data-module="redundancies">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Redundancies</div>
+            <h1 class="module-title">Things you don't need twice</h1>
+            <div class="module-sub">Installer dupes, Time Machine snapshots, orphan caches, archives next to their unzipped folders, and old versions of the same file.</div>
+          </div>
+        </header>
+        <div class="redundancy-list" id="redundancyList"></div>
+      </section>
+
+      <!-- ── Module: Quarantine ─────────────────────────────────────────── -->
+      <section class="module hidden" data-module="quarantine">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Quarantine</div>
+            <h1 class="module-title">Reversible deletions</h1>
+            <div class="module-sub">Items here are restorable. They auto-purge 30 days after quarantine.</div>
+          </div>
+        </header>
+        <div class="quarantine-list" id="quarantineList"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── Drawer for "open" suggestion (file-level review) ────────────── -->
+  <div id="drawer" class="drawer hidden">
+    <div class="drawer-bg"></div>
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <div>
+          <h2 id="drawerTitle">—</h2>
+          <div class="drawer-sub" id="drawerSub">—</div>
+        </div>
+        <button class="btn icon ghost" id="drawerClose" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="drawer-toolbar">
+        <label class="check"><input type="checkbox" id="drawerSelectAll" /> <span>Select all</span></label>
+        <span class="dim" id="drawerSelected">0 selected</span>
+        <span class="grow"></span>
+        <button class="btn primary" id="drawerQuarantine" disabled>Add to plan</button>
+      </div>
+      <div class="drawer-list" id="drawerList"></div>
+    </div>
+  </div>
+
+  <!-- ── File Detail panel ──────────────────────────────────────────────── -->
+  <div id="fileDetail" class="file-detail hidden">
+    <div class="file-detail-bg"></div>
+    <div class="file-detail-panel">
+      <div class="file-detail-head">
+        <button class="btn icon ghost" id="fileDetailClose" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <div class="grow"></div>
+        <button class="btn ghost" id="fileDetailReveal">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V6a2 2 0 0 1 2-2h6l2 3h6a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/></svg>
+          Reveal
+        </button>
+        <button class="btn ghost" id="fileDetailOpen">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6"/></svg>
+          Open
+        </button>
+        <button class="btn ghost" id="fileDetailVerdict" title="Ask AI: should I delete this?">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><circle cx="12" cy="12" r="4"/></svg>
+          Ask AI
+        </button>
+        <button class="btn primary" id="fileDetailQuarantine">Quarantine</button>
+      </div>
+      <div class="file-detail-body" id="fileDetailBody"></div>
+      <div id="fileDetailVerdictPanel" class="fd-verdict hidden"></div>
+    </div>
+  </div>
+
+  <!-- ── Sticky cart ────────────────────────────────────────────────────── -->
+  <div id="cart" class="cart hidden">
+    <div class="cart-summary">
+      <span class="cart-label" id="cartLabel">— selected</span>
+      <span class="cart-divider"></span>
+      <span class="cart-size mono" id="cartSize">0 B</span>
+    </div>
+    <div class="cart-actions">
+      <button class="btn ghost" id="cartClear">Clear</button>
+      <button class="btn primary" id="cartCommit">Quarantine →</button>
+    </div>
+  </div>
+
+  <!-- ── Settings drawer (LLM auth) ─────────────────────────────────────── -->
+  <div id="settings" class="file-detail hidden">
+    <div class="file-detail-bg"></div>
+    <div class="file-detail-panel" style="max-width: 480px">
+      <div class="file-detail-head">
+        <h2 style="font-size:16px;font-weight:600;margin:0">Settings</h2>
+        <div class="grow"></div>
+        <button class="btn icon ghost" id="settingsClose" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="file-detail-body">
+        <p class="dim" style="font-size:12.5px;margin:0 0 18px;line-height:1.6">
+          Optional. Used only when you click <b>Ask Sweeper</b> on a file. Your file paths and metadata go to ChatGPT through the connected provider; <b>file contents never do</b>.
+        </p>
+        <div class="fd-section">
+          <div class="fd-section-label">AI verdicts <span class="badge-soft">premium</span></div>
+          <p class="dim" style="font-size:12.5px;margin:0 0 12px;line-height:1.6">
+            One Integrator pairing covers MacSweep, HablaDaily, and every other polistician.ai app. Already paired? AI verdicts work out of the box.
+          </p>
+          <p class="dim" style="font-size:11.5px;margin:0 0 14px;line-height:1.55;color:var(--text-3)">
+            When you click <b>Ask Sweeper</b>, MacSweep sends the file's metadata — full path, name, size, last-accessed date, kind — to ChatGPT through your Integrator account. Your Integrator subscription bills for it; nothing else leaves your Mac. You can disable this any time.
+          </p>
+          <div id="integratorStatus" class="dim" style="font-size:12.5px;margin-bottom:10px"></div>
+          <div id="integratorActions" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
+        <div class="fd-section">
+          <div class="fd-section-label">Fallback: sign in with ChatGPT directly</div>
+          <p class="dim" style="font-size:12.5px;margin:0 0 14px;line-height:1.6">
+            Uses your existing ChatGPT subscription — no API balance needed. We open a browser window and store only the access token locally.
+          </p>
+          <div id="oauthStatus" class="dim" style="font-size:12.5px;margin-bottom:10px"></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn primary grow" id="oauthLogin">Sign in with ChatGPT</button>
+            <button class="btn ghost hidden" id="oauthSignOut">Sign out</button>
+          </div>
+        </div>
+        <div class="fd-section">
+          <div class="fd-section-label">Fallback: OpenAI API key</div>
+          <p class="dim" style="font-size:12.5px;margin:0 0 14px;line-height:1.6">
+            Paste an <code>sk-…</code> key. Pennies per file analyzed (gpt-4o-mini). Stored locally at <code>data/config.json</code>.
+          </p>
+          <div id="llmStatus" class="dim" style="font-size:12.5px;margin-bottom:10px"></div>
+          <input type="password" id="llmKeyInput" placeholder="sk-..." class="llm-input" autocomplete="off" />
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <button class="btn primary grow" id="llmSave">Save key</button>
+            <button class="btn ghost" id="llmClear">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Undo toast (post-commit) ───────────────────────────────────────── -->
+  <div id="undoToast" class="undo-toast hidden">
+    <span id="undoToastText">—</span>
+    <button id="undoToastBtn" class="btn primary" style="padding:6px 12px;font-size:12.5px">Undo</button>
+  </div>
+
+  <!-- ── Stat explainer drawer ──────────────────────────────────────────── -->
+  <div id="statExplainer" class="file-detail hidden">
+    <div class="file-detail-bg"></div>
+    <div class="file-detail-panel" style="max-width: 520px">
+      <div class="file-detail-head">
+        <h2 id="statExplainerTitle" style="font-size:17px;font-weight:600;margin:0">—</h2>
+        <div class="grow"></div>
+        <button class="btn icon ghost" id="statExplainerClose" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="file-detail-body" id="statExplainerBody"></div>
+    </div>
+  </div>
+
+  <!-- ── Background-rescan banner (auto-shows when index is stale) ───────── -->
+  <div id="rescanBanner" class="rescan-banner hidden">
+    <div class="rescan-banner-pulse"></div>
+    <span id="rescanBannerText">Re-indexing in the background…</span>
+    <span class="dim" id="rescanBannerProgress"></span>
+  </div>
+
+  <!-- ── Toast ──────────────────────────────────────────────────────────── -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

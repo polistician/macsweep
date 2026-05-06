@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+PROJECT="/Users/beauregard/macsweep"
+cd "$PROJECT" || {
+  /usr/bin/osascript -e 'display dialog "MacSweep project folder not found at /Users/beauregard/macsweep. Re-run build_app.sh from the project directory." buttons {"OK"} with icon stop with title "MacSweep"'
+  exit 1
+}
+
+# Hard-kill any prior MacSweep instance so a fresh launch always picks up the
+# latest code. macOS's LaunchServices may otherwise just refocus the existing
+# window without re-running this script.
+pkill -9 -f "/Users/beauregard/macsweep/launch.py" 2>/dev/null || true
+sleep 0.3
+
+mkdir -p data
+
+# First-time setup — silent. If we have to install, show a non-blocking notification.
+if [ ! -x .venv/bin/python ] || ! .venv/bin/python -c 'import webview' >/dev/null 2>&1; then
+  /usr/bin/osascript -e 'display notification "Installing dependencies (one-time, ~30s)…" with title "MacSweep"' >/dev/null 2>&1 &
+  /usr/bin/python3 -m venv .venv >> data/setup.log 2>&1 || true
+  .venv/bin/pip install --quiet --upgrade pip >> data/setup.log 2>&1
+  .venv/bin/pip install --quiet -r requirements.txt >> data/setup.log 2>&1
+  if ! .venv/bin/python -c 'import webview' >/dev/null 2>&1; then
+    /usr/bin/osascript -e 'display dialog "MacSweep failed to install dependencies. See data/setup.log in the project folder." buttons {"OK"} with icon stop with title "MacSweep"'
+    exit 1
+  fi
+fi
+
+exec ./.venv/bin/python launch.py >> data/launch.log 2>&1
