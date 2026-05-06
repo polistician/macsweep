@@ -949,6 +949,7 @@ async function renderModule(name) {
   if (name === 'map') return renderMap();
   if (name === 'files') return renderFiles();
   if (name === 'sweep') return renderSweep();
+  if (name === 'audit') return renderAudit();
   if (name === 'redundancies') return renderRedundancies();
   if (name === 'quarantine') return renderQuarantine();
 }
@@ -2036,6 +2037,232 @@ function applyAiFeatureGate() {
   });
 }
 document.addEventListener('ai-feature-changed', applyAiFeatureGate);
+
+/* ── Module: Sweeper Audit (mass batched verdicts) ──────────────────── */
+const auditState = {
+  selected: new Set(),     // paths
+  filter: null,            // null | 'safe' | 'review' | 'keep'
+  minConfidence: 85,
+  pollTimer: null,
+  results: [],             // last fetched results
+};
+
+async function renderAudit() {
+  // Wire controls once — renderAudit is called every time the user navigates here.
+  const runBtn = $('#auditRunBtn');
+  if (runBtn && !runBtn._wired) {
+    runBtn._wired = true;
+    runBtn.onclick = startAudit;
+    $('#auditConfSlider').oninput = (e) => {
+      auditState.minConfidence = parseInt(e.target.value, 10);
+      $('#auditConfVal').textContent = auditState.minConfidence;
+      refreshAuditResults();
+    };
+    document.querySelectorAll('.audit-chip').forEach(chip => {
+      chip.onclick = () => {
+        const f = chip.dataset.filter;
+        auditState.filter = (auditState.filter === f) ? null : f;
+        document.querySelectorAll('.audit-chip').forEach(c => {
+          c.classList.toggle('active', c.dataset.filter === auditState.filter);
+        });
+        refreshAuditResults();
+      };
+    });
+    $('#auditSelectAll').onchange = (e) => {
+      const checked = e.target.checked;
+      auditState.selected = checked
+        ? new Set(auditState.results.map(r => r.path))
+        : new Set();
+      paintAuditRows();
+      updateAuditSelectionInfo();
+    };
+    $('#auditQuarantineBtn').onclick = quarantineAuditSelection;
+  }
+
+  // If we have prior results in DB, show them straight away.
+  await refreshAuditResults();
+  // Sync UI with current backend state in case an audit is mid-run.
+  await pollAuditStatus(false);
+}
+
+async function startAudit() {
+  if (!aiActive()) {
+    toast('Connect Integrator and enable AI verdicts in Settings first.', 'danger');
+    return;
+  }
+  const max = parseInt($('#auditMaxFiles').value, 10);
+  const min = parseInt($('#auditMinSize').value, 10);
+  $('#auditRunBtn').disabled = true;
+  $('#auditRunBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> Starting…';
+  try {
+    const r = await api('/api/audit/run', {
+      method: 'POST',
+      body: JSON.stringify({ scope: 'smart_picks', max_files: max, min_size_mb: min }),
+    });
+    if (!r.ok) {
+      toast(r.error || 'Could not start audit', 'danger');
+      $('#auditRunBtn').disabled = false;
+      $('#auditRunBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg> Run audit';
+      return;
+    }
+    $('#auditProgress').classList.remove('hidden');
+    pollAuditStatus(true);
+  } catch (e) {
+    toast(`Audit failed: ${e.message}`, 'danger');
+    $('#auditRunBtn').disabled = false;
+    $('#auditRunBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg> Run audit';
+  }
+}
+
+async function pollAuditStatus(continuous) {
+  clearInterval(auditState.pollTimer);
+  auditState.pollTimer = null;
+  const tick = async () => {
+    let s;
+    try { s = await api('/api/audit/status'); }
+    catch (e) { return; }
+    const total = s.total || 0;
+    const done = s.done || 0;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    $('#auditProgressFill').style.width = pct + '%';
+    $('#auditProgressLabel').textContent =
+      s.phase === 'running'
+        ? `Auditing ${s.scope || ''}… ${pct}%`
+        : (s.phase === 'done' ? 'Audit complete.' :
+           s.phase === 'error' ? `Error: ${s.error}` : 'Idle');
+    $('#auditProgressCount').textContent = `${done} / ${total}`;
+    if (s.phase === 'done' || s.phase === 'error' || s.phase === 'idle') {
+      clearInterval(auditState.pollTimer);
+      auditState.pollTimer = null;
+      $('#auditRunBtn').disabled = false;
+      $('#auditRunBtn').innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg> Run audit';
+      if (s.phase === 'done') {
+        toast(`Audit done · ${s.verdict_counts?.safe || 0} safe · ${s.verdict_counts?.review || 0} review · ${s.verdict_counts?.keep || 0} keep`, 'safe');
+      }
+      await refreshAuditResults();
+    }
+  };
+  await tick();
+  if (continuous) {
+    auditState.pollTimer = setInterval(tick, 1500);
+  }
+}
+
+async function refreshAuditResults() {
+  const params = new URLSearchParams();
+  params.set('min_confidence', String(auditState.minConfidence));
+  if (auditState.filter) params.set('verdicts', auditState.filter);
+  params.set('limit', '500');
+  let rows;
+  try { rows = await api(`/api/audit/results?${params.toString()}`); }
+  catch (e) { return; }
+  auditState.results = rows || [];
+  // Update verdict counts (across ALL verdicts, regardless of active filter)
+  const allCounts = await api(`/api/audit/results?min_confidence=0&limit=2000`);
+  const counts = { safe: 0, review: 0, keep: 0 };
+  (allCounts || []).forEach(r => { counts[r.ai_verdict] = (counts[r.ai_verdict] || 0) + 1; });
+  $('#auditCountSafe').textContent = counts.safe;
+  $('#auditCountReview').textContent = counts.review;
+  $('#auditCountKeep').textContent = counts.keep;
+  if (counts.safe + counts.review + counts.keep > 0) {
+    $('#auditSummary').classList.remove('hidden');
+  }
+  paintAuditRows();
+}
+
+function paintAuditRows() {
+  const table = $('#auditTable');
+  const toolbar = $('#auditToolbar');
+  if (!auditState.results.length) {
+    table.innerHTML = '<div class="empty" style="padding:60px 20px;text-align:center">No verdicts match the current filters.</div>';
+    toolbar.classList.add('hidden');
+    return;
+  }
+  toolbar.classList.remove('hidden');
+  table.innerHTML = '';
+  auditState.results.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'audit-row';
+    if (auditState.selected.has(r.path)) row.classList.add('selected');
+    row.innerHTML = `
+      <input type="checkbox" data-path="${escapeAttr(r.path)}" ${auditState.selected.has(r.path) ? 'checked' : ''} />
+      <span class="audit-row-verdict" data-verdict="${r.ai_verdict}">${r.ai_verdict}</span>
+      <div class="audit-row-info">
+        <div class="audit-row-name" title="${escapeAttr(r.path)}">${r.name}</div>
+        <div class="audit-row-reason" title="${escapeAttr(r.ai_reason || '')}">${r.ai_reason || ''}</div>
+      </div>
+      <div class="audit-row-conf">${r.ai_confidence}%</div>
+      <div class="audit-row-size">${bytes(r.size)}</div>
+    `;
+    const cb = row.querySelector('input');
+    cb.onclick = e => e.stopPropagation();
+    cb.onchange = () => {
+      if (cb.checked) auditState.selected.add(r.path);
+      else auditState.selected.delete(r.path);
+      row.classList.toggle('selected', cb.checked);
+      updateAuditSelectionInfo();
+    };
+    row.onclick = (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      openFileDetail(r.path);
+    };
+    table.appendChild(row);
+  });
+  updateAuditSelectionInfo();
+}
+
+function updateAuditSelectionInfo() {
+  const n = auditState.selected.size;
+  let totalSize = 0;
+  auditState.results.forEach(r => { if (auditState.selected.has(r.path)) totalSize += r.size; });
+  $('#auditSelectionInfo').textContent =
+    n ? `${n} selected · ${bytes(totalSize)}` : '0 selected';
+  $('#auditQuarantineBtn').disabled = n === 0;
+  $('#auditQuarantineBtn').textContent = n
+    ? `Quarantine ${n} (${bytes(totalSize)})`
+    : 'Quarantine selected';
+  // Check master state
+  const visiblePaths = auditState.results.map(r => r.path);
+  const allSelected = visiblePaths.length > 0 && visiblePaths.every(p => auditState.selected.has(p));
+  $('#auditSelectAll').checked = allSelected;
+}
+
+async function quarantineAuditSelection() {
+  const paths = Array.from(auditState.selected);
+  if (!paths.length) return;
+  // Hard cap as a safety net — backend has its own protected-prefix guards
+  // but bound the click anyway.
+  if (paths.length > 200) {
+    toast('Cap is 200 per click. Narrow the filter.', 'danger');
+    return;
+  }
+  // Surface any 'keep' or low-confidence picks before they slip through.
+  const risky = auditState.results.filter(r =>
+    auditState.selected.has(r.path) &&
+    (r.ai_verdict !== 'safe' || r.ai_confidence < 75)
+  );
+  let warning = `Quarantine ${paths.length} files? Restorable for 30 days.`;
+  if (risky.length) {
+    warning += `\n\n${risky.length} of these are NOT high-confidence "safe" — review before continuing.`;
+  }
+  if (!confirm(warning)) return;
+  try {
+    const r = await api('/api/quarantine', {
+      method: 'POST',
+      body: JSON.stringify({ paths }),
+    });
+    const ok = r.results.filter(x => x.status === 'quarantined');
+    const freed = ok.reduce((a, b) => a + (b.size || 0), 0);
+    toast(`Quarantined ${ok.length} · freed ${bytes(freed)}`, 'safe');
+    auditState.selected.clear();
+    cacheClear();
+    await refreshOverview();
+    await refreshQuarantineBadge();
+    await refreshAuditResults();
+  } catch (e) {
+    toast(`Quarantine failed: ${e.message}`, 'danger');
+  }
+}
 
 /* ── Module: Quarantine ───────────────────────────────────────────────── */
 async function renderQuarantine() {

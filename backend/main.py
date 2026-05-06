@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import db, file_detail, file_verdict, group_verdict, grouping, integrator_chat, labels as labels_mod, llm, oauth_chatgpt, projects, quarantine, redundancy, scanner, smart, suggestions, sweep, warmup
+from . import audit, db, file_detail, file_verdict, group_verdict, grouping, integrator_chat, labels as labels_mod, llm, oauth_chatgpt, projects, quarantine, redundancy, scanner, smart, suggestions, sweep, warmup
 
 app = FastAPI(title="MacSweep")
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
@@ -573,6 +573,35 @@ class GroupVerdictRequest(BaseModel):
 @app.post("/api/group/verdict")
 def group_verdict_route(req: GroupVerdictRequest):
     return group_verdict.evaluate(req.path, force=req.force)
+
+
+# ── Sweeper Audit (mass batched verdicts) ────────────────────────────────────
+class AuditRunRequest(BaseModel):
+    scope: str = "smart_picks"
+    max_files: int = 100
+    min_size_mb: int = 10
+
+
+@app.post("/api/audit/run")
+def audit_run(req: AuditRunRequest):
+    return audit.start(req.scope, req.max_files, req.min_size_mb)
+
+
+@app.get("/api/audit/status")
+def audit_status_route():
+    return audit.status()
+
+
+@app.get("/api/audit/results")
+def audit_results(min_confidence: int = 0, verdicts: str = "safe,review,keep", limit: int = 500):
+    vs = [v.strip() for v in verdicts.split(",") if v.strip()]
+    return audit.results(min_confidence=min_confidence, verdicts=vs, limit=limit)
+
+
+@app.post("/api/audit/reset")
+def audit_reset():
+    audit.reset()
+    return {"phase": "idle"}
 
 
 # ── Integrator (third LLM auth path: PKCE-paired ChatGPT via broker) ─────────

@@ -147,6 +147,11 @@
           <span>Sweep</span>
           <span class="nav-tag">FAST</span>
         </button>
+        <button class="nav-item" data-module="audit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/><path d="M8 11h6"/><path d="M11 8v6"/></svg>
+          <span>Sweeper Audit</span>
+          <span class="nav-tag">AI</span>
+        </button>
         <button class="nav-item" data-module="redundancies">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="13" height="13" rx="2"/><rect x="8" y="8" width="13" height="13" rx="2"/></svg>
           <span>Redundancies</span>
@@ -326,6 +331,69 @@
           </div>
         </header>
         <div class="redundancy-list" id="redundancyList"></div>
+      </section>
+
+      <!-- ── Module: Sweeper Audit (batched AI verdicts) ────────────────── -->
+      <section class="module hidden" data-module="audit">
+        <header class="module-head">
+          <div>
+            <div class="kicker">Sweeper Audit · AI</div>
+            <h1 class="module-title">Mass verdicts, in one pass.</h1>
+            <div class="module-sub">Pre-filters via the smart-pick heuristic so the LLM only judges ambiguous files. Batched 20 per call. Verdicts are cached — re-runs only ask Sweeper about new files.</div>
+          </div>
+        </header>
+        <div class="audit-controls">
+          <div class="audit-control">
+            <label>Files to audit</label>
+            <select id="auditMaxFiles">
+              <option value="50">Top 50</option>
+              <option value="100" selected>Top 100</option>
+              <option value="250">Top 250</option>
+              <option value="500">Top 500 (max)</option>
+            </select>
+          </div>
+          <div class="audit-control">
+            <label>Min size</label>
+            <select id="auditMinSize">
+              <option value="10" selected>≥ 10 MB</option>
+              <option value="50">≥ 50 MB</option>
+              <option value="100">≥ 100 MB</option>
+              <option value="500">≥ 500 MB</option>
+            </select>
+          </div>
+          <button class="btn primary" id="auditRunBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l14 9-14 9z"/></svg>
+            Run audit
+          </button>
+        </div>
+        <div class="audit-progress hidden" id="auditProgress">
+          <div class="audit-progress-bar"><div class="audit-progress-fill" id="auditProgressFill"></div></div>
+          <div class="audit-progress-text">
+            <span id="auditProgressLabel">Starting…</span>
+            <span class="dim" id="auditProgressCount">0 / 0</span>
+          </div>
+        </div>
+        <div class="audit-summary hidden" id="auditSummary">
+          <button class="audit-chip" data-filter="safe"><span class="audit-chip-dot" data-verdict="safe"></span><span class="audit-chip-label">safe</span><span class="audit-chip-count" id="auditCountSafe">0</span></button>
+          <button class="audit-chip" data-filter="review"><span class="audit-chip-dot" data-verdict="review"></span><span class="audit-chip-label">review</span><span class="audit-chip-count" id="auditCountReview">0</span></button>
+          <button class="audit-chip" data-filter="keep"><span class="audit-chip-dot" data-verdict="keep"></span><span class="audit-chip-label">keep</span><span class="audit-chip-count" id="auditCountKeep">0</span></button>
+          <span class="grow"></span>
+          <label class="audit-conf">
+            Confidence ≥ <span id="auditConfVal">85</span>%
+            <input type="range" id="auditConfSlider" min="0" max="100" value="85" />
+          </label>
+        </div>
+        <div class="audit-table-wrap">
+          <div class="audit-toolbar hidden" id="auditToolbar">
+            <label class="check"><input type="checkbox" id="auditSelectAll" /> <span>Select all visible</span></label>
+            <span class="dim" id="auditSelectionInfo">0 selected</span>
+            <span class="grow"></span>
+            <button class="btn primary" id="auditQuarantineBtn" disabled>Quarantine selected</button>
+          </div>
+          <div class="audit-table" id="auditTable">
+            <div class="empty" style="padding:60px 20px;text-align:center">No audit yet — click <b>Run audit</b> above.</div>
+          </div>
+        </div>
       </section>
 
       <!-- ── Module: Quarantine ─────────────────────────────────────────── -->

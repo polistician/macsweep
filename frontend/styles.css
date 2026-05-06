@@ -857,6 +857,74 @@ input { font: inherit; color: inherit; }
 .red-ask { padding: 2px 6px; }
 .red-ask .glyph { font-size: 11px; }
 
+/* ── Sweeper Audit module ───────────────────────────────────────────── */
+.audit-controls {
+  display: flex; gap: 14px; align-items: flex-end;
+  padding: 18px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface-2); margin-bottom: 16px;
+}
+.audit-control { display: flex; flex-direction: column; gap: 4px; min-width: 130px; }
+.audit-control label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: .08em; font-weight: 600; }
+.audit-control select {
+  background: var(--surface-1); color: var(--text-1);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 10px; font-size: 13px; font-family: inherit;
+  cursor: pointer;
+}
+.audit-control select:hover { border-color: var(--accent); }
+#auditRunBtn { padding: 10px 18px; }
+
+.audit-progress { padding: 14px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); margin-bottom: 16px; }
+.audit-progress.hidden { display: none; }
+.audit-progress-bar { height: 6px; border-radius: 100px; background: rgba(255,255,255,.06); overflow: hidden; margin-bottom: 8px; }
+.audit-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--safe)); width: 0; transition: width .3s ease; }
+.audit-progress-text { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.audit-summary { display: flex; align-items: center; gap: 10px; padding: 12px 6px; flex-wrap: wrap; }
+.audit-summary.hidden { display: none; }
+.audit-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 14px; border-radius: 100px;
+  background: transparent; border: 1px solid var(--border); color: var(--text-2);
+  font-size: 12px; font-weight: 500; cursor: pointer;
+  transition: background .12s, border-color .12s;
+}
+.audit-chip:hover { background: rgba(255,255,255,.04); }
+.audit-chip.active { background: rgba(196,181,253,.1); border-color: var(--accent); color: var(--text-1); }
+.audit-chip-dot { width: 9px; height: 9px; border-radius: 100px; }
+.audit-chip-dot[data-verdict="safe"]   { background: #4ade80; }
+.audit-chip-dot[data-verdict="review"] { background: #facc15; }
+.audit-chip-dot[data-verdict="keep"]   { background: #fca5a5; }
+.audit-chip-count { font-family: var(--mono); font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.audit-conf { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+.audit-conf input[type=range] { width: 140px; accent-color: var(--accent); }
+
+.audit-table-wrap { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-1); overflow: hidden; }
+.audit-toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.audit-toolbar.hidden { display: none; }
+.audit-table { max-height: 60vh; overflow-y: auto; }
+.audit-row {
+  display: grid; grid-template-columns: 28px 80px 1fr 90px 90px;
+  gap: 12px; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.04);
+  cursor: pointer;
+}
+.audit-row:hover { background: rgba(255,255,255,.02); }
+.audit-row.selected { background: rgba(196,181,253,.06); }
+.audit-row-verdict {
+  display: inline-flex; justify-content: center;
+  font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  padding: 3px 7px; border-radius: 100px; color: #0a0a0c; min-width: 50px;
+}
+.audit-row-verdict[data-verdict="safe"]   { background: #4ade80; }
+.audit-row-verdict[data-verdict="review"] { background: #facc15; }
+.audit-row-verdict[data-verdict="keep"]   { background: #fca5a5; }
+.audit-row-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.audit-row-name { font-size: 13px; color: var(--text-1); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-row-reason { font-size: 11.5px; color: var(--text-3); font-style: italic; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.audit-row-conf { font-family: var(--mono); font-size: 12px; color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
+.audit-row-size { font-family: var(--mono); font-size: 12.5px; color: var(--text-2); text-align: right; font-variant-numeric: tabular-nums; }
+
 .footer-buttons { display: flex; gap: 6px; }
 .footer-buttons .grow { flex: 1; justify-content: center; }
 

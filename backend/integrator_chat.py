@@ -211,10 +211,23 @@ def _start_callback_server(port: int = LOCAL_PORT) -> http.server.HTTPServer:
 
 
 def status() -> dict:
-    """Return UI-facing snapshot. Safe to call always."""
+    """Return UI-facing snapshot. Safe to call always.
+
+    Best-effort: if `user_email` is missing on a connected session, try to
+    backfill it from Integrator's `/api/v1/auth/me`. Older configs paired
+    before that endpoint existed have no email on file; this lets the
+    Settings UI show "Paired with you@example.com" without forcing a re-pair.
+    """
     state = _read()
     if not state.get("access_token"):
         return {"connected": False}
+
+    if not state.get("user_email"):
+        email = _fetch_user_email(state)
+        if email:
+            state["user_email"] = email
+            _write(state)
+
     return {
         "connected": True,
         "base_url": state.get("base_url") or DEFAULT_BASE_URL,
@@ -223,6 +236,31 @@ def status() -> dict:
         "expires_at": state.get("expires_at"),
         "user_email": state.get("user_email"),
     }
+
+
+def _fetch_user_email(state: dict) -> Optional[str]:
+    """Best-effort GET /api/v1/auth/me. Never raises — returns None on any error.
+
+    Called from `connect()` (right after token exchange) and from `status()`
+    (lazy backfill for older paired sessions). Both call sites tolerate None.
+    """
+    base_url = state.get("base_url") or DEFAULT_BASE_URL
+    token = state.get("access_token")
+    if not token:
+        return None
+    try:
+        body = _http_get_json(
+            f"{base_url.rstrip('/')}/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    except Exception as e:
+        log.debug("integrator /api/v1/auth/me failed: %s", e)
+        return None
+    if isinstance(body, dict):
+        email = body.get("email")
+        if isinstance(email, str) and email:
+            return email
+    return None
 
 
 def is_connected() -> bool:
@@ -340,17 +378,13 @@ def connect(
             "paired_at": int(time.time()),
         }
 
-        # Best-effort: enrich with the user's email from /api/auth/me. Skip on
-        # failure — Integrator may not expose this anonymously.
-        try:
-            me = _http_get_json(
-                f"{base_url.rstrip('/')}/api/auth/me",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            if isinstance(me, dict) and me.get("email"):
-                new_state["user_email"] = me["email"]
-        except Exception:
-            pass
+        # Best-effort: enrich with the user's email so Settings can show
+        # "Paired with you@example.com". Uses Integrator's Bearer-aware
+        # /api/v1/auth/me — the older /api/auth/me is cookie-only and 401s
+        # for iat_ tokens. Failure is non-fatal; status() will retry later.
+        email = _fetch_user_email({"base_url": base_url, "access_token": access_token})
+        if email:
+            new_state["user_email"] = email
 
         _write(new_state)
         return status()
