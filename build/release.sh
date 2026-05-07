@@ -25,6 +25,12 @@
 
 set -euo pipefail
 
+# A scopeless GITHUB_TOKEN env var will override gh's keyring auth and break
+# `gh repo create` / `gh release create` with a "scope" error. The keyring
+# token (gho_…) created by `gh auth login` has the right scopes; just unset
+# the env var here so it doesn't get in the way.
+unset GITHUB_TOKEN
+
 NEW_VERSION="${1:-}"
 SKIP_PUSH=0
 SKIP_DEPLOY=0

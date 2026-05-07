@@ -429,6 +429,10 @@ async function checkForUpdate() {
   status.innerHTML = '';
   try {
     const r = await api('/api/update/check');
+    // The check response always carries the actual on-disk version. Refresh
+    // the pill from THIS so a stale display (set when settings opened) gets
+    // corrected if VERSION changed under us (e.g. release.sh just ran).
+    if (r.current) $('#appVersion').textContent = `v${r.current}`;
     if (!r.ok) {
       status.innerHTML = `<span style="color:var(--danger)">${r.error || 'Check failed'}</span>`;
       btn.disabled = false;
