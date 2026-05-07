@@ -400,7 +400,129 @@ function bindGlobalUI() {
 
 async function openSettings() {
   $('#settings').classList.remove('hidden');
-  await Promise.all([refreshLLMStatus(), refreshIntegratorStatus()]);
+  await Promise.all([refreshLLMStatus(), refreshIntegratorStatus(), refreshUpdateStatus()]);
+}
+
+/* ── Self-update (voicetype-style) ────────────────────────────────────── */
+const updateState = { pollTimer: null, latest: null };
+
+async function refreshUpdateStatus() {
+  try {
+    const v = await api('/api/version');
+    $('#appVersion').textContent = v.version || '?';
+  } catch (e) { /* ignore */ }
+  // Wire button once
+  const btn = $('#updateCheckBtn');
+  if (btn && !btn._wired) {
+    btn._wired = true;
+    btn.onclick = checkForUpdate;
+  }
+  $('#updateStatus').textContent = '';
+  $('#updateProgress').classList.add('hidden');
+}
+
+async function checkForUpdate() {
+  const btn = $('#updateCheckBtn');
+  const status = $('#updateStatus');
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  status.innerHTML = '';
+  try {
+    const r = await api('/api/update/check');
+    if (!r.ok) {
+      status.innerHTML = `<span style="color:var(--danger)">${r.error || 'Check failed'}</span>`;
+      btn.disabled = false;
+      btn.textContent = 'Check for updates';
+      return;
+    }
+    updateState.latest = r;
+    if (!r.has_update) {
+      status.innerHTML = `<span style="color:var(--safe)">✓ Up to date</span> · v${r.current}`;
+      btn.disabled = false;
+      btn.textContent = 'Check for updates';
+      return;
+    }
+    // Update available — swap the button into "Install vX.Y.Z"
+    const notes = (r.notes || '').trim();
+    status.innerHTML = `
+      <div style="color:var(--text-1);font-weight:500;margin-bottom:4px">
+        v${r.latest} available <span class="dim" style="font-weight:400">(you have v${r.current})</span>
+      </div>
+      ${notes ? `<details style="margin-top:6px"><summary style="cursor:pointer;color:var(--text-3);font-size:11.5px">Release notes</summary>
+        <pre style="margin:6px 0 0;padding:8px;background:var(--surface-1);border-radius:6px;font-size:11px;line-height:1.5;white-space:pre-wrap;color:var(--text-2);max-height:160px;overflow:auto">${escapeAttr(notes)}</pre>
+      </details>` : ''}
+    `;
+    btn.textContent = `Install v${r.latest}`;
+    btn.disabled = false;
+    btn.onclick = installUpdate;
+  } catch (e) {
+    status.innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+    btn.disabled = false;
+    btn.textContent = 'Check for updates';
+  }
+}
+
+async function installUpdate() {
+  const btn = $('#updateCheckBtn');
+  btn.disabled = true;
+  btn.textContent = 'Installing…';
+  $('#updateProgress').classList.remove('hidden');
+  try {
+    const r = await api('/api/update/install', { method: 'POST', body: JSON.stringify({ force: false }) });
+    if (!r.ok) {
+      $('#updateStatus').innerHTML = `<span style="color:var(--danger)">${r.error || 'Install failed'}</span>`;
+      btn.disabled = false;
+      btn.textContent = 'Try again';
+      return;
+    }
+    pollUpdateStatus();
+  } catch (e) {
+    $('#updateStatus').innerHTML = `<span style="color:var(--danger)">${e.message}</span>`;
+    btn.disabled = false;
+    btn.textContent = 'Try again';
+  }
+}
+
+function pollUpdateStatus() {
+  clearInterval(updateState.pollTimer);
+  updateState.pollTimer = setInterval(async () => {
+    let s;
+    try { s = await api('/api/update/status'); } catch (e) { return; }
+    $('#updateProgressFill').style.width = (s.progress || 0) + '%';
+    $('#updateProgressLabel').textContent = s.label || s.phase;
+    if (s.phase === 'done') {
+      clearInterval(updateState.pollTimer);
+      updateState.pollTimer = null;
+      $('#updateStatus').innerHTML = `
+        <span style="color:var(--safe)">✓ Installed v${s.to_version}</span> · restart to apply
+      `;
+      const btn = $('#updateCheckBtn');
+      btn.disabled = false;
+      btn.textContent = 'Restart now';
+      btn.onclick = restartAfterUpdate;
+    } else if (s.phase === 'error') {
+      clearInterval(updateState.pollTimer);
+      updateState.pollTimer = null;
+      $('#updateStatus').innerHTML = `<span style="color:var(--danger)">${s.error || 'Install failed'}</span>`;
+      const btn = $('#updateCheckBtn');
+      btn.disabled = false;
+      btn.textContent = 'Try again';
+    }
+  }, 800);
+}
+
+async function restartAfterUpdate() {
+  const btn = $('#updateCheckBtn');
+  btn.disabled = true;
+  btn.textContent = 'Restarting…';
+  try {
+    await api('/api/update/relaunch', { method: 'POST' });
+    // Backend will exit in ~1.5s. Show a friendly notice.
+    $('#updateStatus').innerHTML = `<span class="dim">App is restarting…</span>`;
+  } catch (e) {
+    // Once the backend dies, the fetch will fail — that's expected.
+    $('#updateStatus').innerHTML = `<span class="dim">Restarting…</span>`;
+  }
 }
 
 /* ── AI verdicts (Integrator) ─────────────────────────────────────────── */

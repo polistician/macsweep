@@ -513,6 +513,22 @@
           </div>
         </div>
         <div class="fd-section">
+          <div class="fd-section-label">About &amp; updates</div>
+          <p class="dim" style="font-size:12.5px;margin:0 0 12px;line-height:1.6">
+            Version <span id="appVersion" class="mono">…</span> · Updates ship via GitHub Releases.
+          </p>
+          <div id="updateStatus" class="dim" style="font-size:12.5px;margin-bottom:10px"></div>
+          <div id="updateProgress" class="hidden" style="margin-bottom:10px">
+            <div style="height:4px;border-radius:100px;background:rgba(255,255,255,.06);overflow:hidden;margin-bottom:6px">
+              <div id="updateProgressFill" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--safe));width:0;transition:width .3s ease"></div>
+            </div>
+            <div id="updateProgressLabel" style="font-size:11.5px;color:var(--text-3);font-variant-numeric:tabular-nums">Starting…</div>
+          </div>
+          <div id="updateActions" style="display:flex;gap:6px">
+            <button class="btn primary grow" id="updateCheckBtn">Check for updates</button>
+          </div>
+        </div>
+        <div class="fd-section">
           <div class="fd-section-label">Fallback: OpenAI API key</div>
           <p class="dim" style="font-size:12.5px;margin:0 0 14px;line-height:1.6">
             Paste an <code>sk-…</code> key. Pennies per file analyzed (gpt-4o-mini). Stored locally at <code>data/config.json</code>.

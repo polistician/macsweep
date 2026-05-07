@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MacSweep — reclaim your Mac, without regret</title>
+  <meta name="description" content="A native Mac cleanup utility. Indexes every file in your home directory, ranks by what matters, lets you decide with full context — and gives you 30 days to undo. Optional Sweeper AI verdicts via your own ChatGPT subscription.">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Decorative background — soft macOS Sequoia-style wash -->
+<div class="page-bg" aria-hidden="true">
+  <div class="page-bg__layer page-bg__layer--mauve"></div>
+  <div class="page-bg__layer page-bg__layer--mint"></div>
+  <div class="page-bg__layer page-bg__layer--noise"></div>
+</div>
+
+<!-- Page-level header (sits OUTSIDE the window) -->
+<header class="page-head">
+  <a class="page-head__back" href="https://polistician.ai">← polistician.ai</a>
+  <p class="page-head__breadcrumb">macsweep.polistician.ai</p>
+  <a class="page-head__github" href="https://github.com/polistician/macsweep" target="_blank" rel="noopener">github ↗</a>
+</header>
+
+<!-- ════════════════════════════════════════════════════════════
+     THE WINDOW — entire page is dressed as a macOS app window.
+     The sidebar nav matches the real app. Each main section
+     mimics the look of that view inside the actual product.
+════════════════════════════════════════════════════════════ -->
+<main class="window">
+
+  <!-- Title bar with traffic lights -->
+  <div class="window__chrome">
+    <div class="traffic-lights" aria-hidden="true">
+      <span class="tl tl--red"></span>
+      <span class="tl tl--yellow"></span>
+      <span class="tl tl--green"></span>
+    </div>
+    <div class="window__title">MacSweep</div>
+    <div class="window__chrome-spacer"></div>
+  </div>
+
+  <div class="window__body">
+
+    <!-- ── Sidebar nav (matches the real app) ── -->
+    <aside class="sidebar">
+      <a class="sidebar__brand" href="#hero">
+        <span class="sidebar__logo" aria-hidden="true"></span>
+        <span class="sidebar__brand-name">MacSweep</span>
+      </a>
+      <nav class="sidebar__nav">
+        <a class="snav" href="#hero" data-target="hero">
+          <span class="snav__icon">❒</span><span class="snav__label">Smart Scan</span>
+        </a>
+        <a class="snav" href="#map" data-target="map">
+          <span class="snav__icon">⊕</span><span class="snav__label">Storage Map</span>
+        </a>
+        <a class="snav" href="#files" data-target="files">
+          <span class="snav__icon">▤</span><span class="snav__label">Files</span>
+        </a>
+        <a class="snav" href="#sweep" data-target="sweep">
+          <span class="snav__icon">⚡</span><span class="snav__label">Sweep</span>
+          <span class="snav__tag snav__tag--fast">FAST</span>
+        </a>
+        <a class="snav" href="#sweeper" data-target="sweeper">
+          <span class="snav__icon">◐</span><span class="snav__label">Sweeper</span>
+          <span class="snav__tag snav__tag--ai">AI</span>
+        </a>
+        <a class="snav" href="#audit" data-target="audit">
+          <span class="snav__icon">▦</span><span class="snav__label">Sweeper Audit</span>
+        </a>
+        <a class="snav" href="#quarantine" data-target="quarantine">
+          <span class="snav__icon">⌫</span><span class="snav__label">Quarantine</span>
+        </a>
+        <a class="snav" href="#install" data-target="install">
+          <span class="snav__icon">↓</span><span class="snav__label">Install</span>
+        </a>
+      </nav>
+      <div class="sidebar__chip">
+        <span class="sidebar__chip-dot" aria-hidden="true"></span>
+        <span>Up to date · <span data-latest-version>v0.1.0</span></span>
+      </div>
+      <div class="sidebar__footer">
+        <div class="sf-row"><span>Indexed</span><span class="mono">175 GB</span></div>
+        <div class="sf-row"><span>Files</span><span class="mono">1,564,335</span></div>
+        <div class="sf-row sf-row--meta">on the laptop where this site was built</div>
+      </div>
+    </aside>
+
+    <!-- ── Main scrollable content ── -->
+    <div class="canvas">
+
+      <!-- §1 HERO — Smart Scan ─────────────────────────────── -->
+      <section class="module" id="hero">
+        <p class="kicker">Smart Scan · what MacSweep does</p>
+        <h1 class="hero__h1">
+          <span class="serif">Reclaim</span> your Mac.<br>
+          Without <span class="serif italic">regret</span>.
+        </h1>
+        <p class="hero__lede">
+          MacSweep indexes every file in your home directory, groups them by what matters — caches, build artifacts, forgotten downloads, redundant installers — and lets you decide. Quarantine instead of delete. Thirty days to change your mind. Optional <a href="#sweeper">Sweeper AI</a> verdicts via your own ChatGPT subscription. Nothing leaves the machine that you don't see leave.
+        </p>
+        <div class="hero__cta">
+          <a class="btn-primary" href="#install">↓ Download for macOS</a>
+          <a class="btn-ghost" href="https://github.com/polistician/macsweep" target="_blank" rel="noopener">Source on GitHub</a>
+        </div>
+        <p class="hero__sub">
+          One person built this because a Mac cleaner once deleted a directory there was no undoing.
+          The numbers in the sidebar — 1.56 M files, 175 GB indexed — came out of <code>data/index.db</code> on the laptop you can see this page from.
+          <strong>Files quarantined in production: zero.</strong>
+        </p>
+
+        <!-- Real screenshot of the Smart Scan view -->
+        <figure class="shot">
+          <div class="shot__frame">
+            <img src="assets/screenshots/smart-scan.png" alt="MacSweep Smart Scan view showing 13 GB recoverable across four cleanup areas." loading="lazy">
+          </div>
+          <figcaption><span class="caption-tag">FIG. 1 ·</span> Smart Scan — recoverable now, grouped, sized, never auto-deleted.</figcaption>
+        </figure>
+      </section>
+
+      <!-- §2 STORAGE MAP ─────────────────────────────────────── -->
+      <section class="module" id="map">
+        <p class="kicker">Storage Map</p>
+        <h2 class="module__h2">Where it actually lives.</h2>
+        <p class="module__lede">
+          A sunburst of your home directory by depth. Hover any slice to see its bytes; click to drill in. The same Apple-grade rendering you've seen in DaisyDisk and GrandPerspective — but every slice is selectable, every node has a Reveal in Finder, and the AI verdicts from <a href="#sweeper">Sweeper</a> appear right inside the inspector.
+        </p>
+        <figure class="shot">
+          <div class="shot__frame">
+            <img src="assets/screenshots/storage-map.png" alt="MacSweep Storage Map: a multi-ring sunburst centered on 164 GB, with named slices for Group Containers, Application Support, Caches, Documents, and project folders." loading="lazy">
+          </div>
+          <figcaption><span class="caption-tag">FIG. 2 ·</span> 164 GB rendered as a depth-4 sunburst. Click a slice to inspect; Sweeper verdicts surface in the right pane.</figcaption>
+        </figure>
+      </section>
+
+      <!-- §3 FILES ───────────────────────────────────────────── -->
+      <section class="module" id="files">
+        <p class="kicker">Files</p>
+        <h2 class="module__h2">Five lenses, one index.</h2>
+        <p class="module__lede">
+          Same files, different cuts. Each tab gives you a different way to find what's worth losing.
+        </p>
+        <ul class="lens-grid">
+          <li><span class="lens-grid__num">01</span><b>Smart picks</b> — ranked by deletability score: size × idle months × file kind. Top of list = highest confidence.</li>
+          <li><span class="lens-grid__num">02</span><b>Categories</b> — Caches · Dev artifacts · Trash · Logs · Installers · Downloads · iOS backups · Media · Documents · ML weights · Apps. With sizes and recoverable totals.</li>
+          <li><span class="lens-grid__num">03</span><b>Projects</b> — auto-detected git repos, with separate columns for source size vs. <code>node_modules</code>/<code>target</code>/<code>build</code> artifact size. Last-touched age. Drill down to nuke artifacts only.</li>
+          <li><span class="lens-grid__num">04</span><b>Forgotten</b> — files over 100 MB you haven't opened in a year. Excludes obvious system stuff.</li>
+          <li><span class="lens-grid__num">05</span><b>Largest</b> — straight rank by size. Same row, different sort.</li>
+        </ul>
+      </section>
+
+      <!-- §4 SWEEP ───────────────────────────────────────────── -->
+      <section class="module" id="sweep">
+        <p class="kicker">Sweep · the fast lane</p>
+        <h2 class="module__h2">Decide, in seconds.</h2>
+        <p class="module__lede">
+          The fastest way through the ambiguous middle band. One file at a time, full preview, source URL where it was downloaded from, Tinder-style swipe. <kbd>←</kbd> Trash · <kbd>→</kbd> Keep · <kbd>↓</kbd> Skip · <kbd>Space</kbd> opens Quick Look. Each Trash builds a queue you commit at the end — nothing acts in real time, you can <strong>undo every swipe</strong>. Sweeper sits on the card too: ask for a one-line verdict before deciding.
+        </p>
+        <figure class="shot">
+          <div class="shot__frame">
+            <img src="assets/screenshots/sweep-mode.png" alt="MacSweep Sweep mode card showing a 3.9 GB file with metadata grid, Ask Sweeper button, and Trash/Keep/Skip actions." loading="lazy">
+          </div>
+          <figcaption><span class="caption-tag">FIG. 3 ·</span> Card shows kind, size, last opened, modified, source URL — and an Ask Sweeper button if you want a second opinion.</figcaption>
+        </figure>
+      </section>
+
+      <!-- §5 SWEEPER · AI ───────────────────────────────────── -->
+      <section class="module module--accent" id="sweeper">
+        <p class="kicker kicker--ai">Sweeper · in-app AI agent</p>
+        <h2 class="module__h2">
+          <span class="serif italic">Ask Sweeper</span> — should I keep this?
+        </h2>
+        <p class="module__lede">
+          Sweeper is the AI persona built into MacSweep. Click the <span class="ask-chip">◐ Ask Sweeper</span> button on any file — anywhere — and Sweeper sees the metadata only (path, name, size, last-accessed date, kind), <em>never the contents</em>, and returns one of three verdicts with a one-line reason and a confidence score.
+        </p>
+
+        <!-- Verdict anatomy — the 3 chips, big and explained -->
+        <div class="verdict-row">
+          <div class="verdict-card">
+            <span class="vchip vchip--safe">safe</span>
+            <p class="verdict-card__reason">"Brave's File System cache will rebuild on next launch."</p>
+            <p class="verdict-card__conf">95% confident</p>
+          </div>
+          <div class="verdict-card">
+            <span class="vchip vchip--review">review</span>
+            <p class="verdict-card__reason">"Football Manager save game from April. You haven't opened it in 6 weeks."</p>
+            <p class="verdict-card__conf">71% confident</p>
+          </div>
+          <div class="verdict-card">
+            <span class="vchip vchip--keep">keep</span>
+            <p class="verdict-card__reason">"Path contains 'tax' — almost certainly your records."</p>
+            <p class="verdict-card__conf">98% confident</p>
+          </div>
+        </div>
+
+        <!-- How it routes -->
+        <div class="ai-flow">
+          <div class="ai-flow__step">
+            <span class="ai-flow__num">1</span>
+            <h3>Click <span class="ask-chip ask-chip--inline">◐ Ask Sweeper</span></h3>
+            <p>Buttons appear on every file row, every group, every Sweep card, the Storage Map inspector, and inside the Quarantine list.</p>
+          </div>
+          <div class="ai-flow__step">
+            <span class="ai-flow__num">2</span>
+            <h3>Metadata leaves your Mac</h3>
+            <p>Just six fields per file. Routed through <a href="https://integrator.polistician.ai">Integrator</a> using <em>your own</em> ChatGPT subscription — one pairing covers every polistician.ai app. No file contents. Nothing else.</p>
+          </div>
+          <div class="ai-flow__step">
+            <span class="ai-flow__num">3</span>
+            <h3>Verdict appears inline</h3>
+            <p>One pill, one sentence, one confidence number. Cached on the file so re-clicks are instant. Disable any time in Settings.</p>
+          </div>
+        </div>
+
+        <figure class="shot shot--right">
+          <div class="shot__frame">
+            <img src="assets/screenshots/settings-ai.png" alt="MacSweep Settings drawer with the AI verdicts section paired to ChatGPT, plus About & updates and the Check for updates button." loading="lazy">
+          </div>
+          <figcaption><span class="caption-tag">FIG. 4 ·</span> Settings → AI verdicts. Pair once via Integrator, toggle off any time, tokens stay local.</figcaption>
+        </figure>
+      </section>
+
+      <!-- §6 AUDIT ──────────────────────────────────────────── -->
+      <section class="module" id="audit">
+        <p class="kicker">Sweeper Audit · mass verdicts</p>
+        <h2 class="module__h2">Two hundred files, one batched call.</h2>
+        <p class="module__lede">
+          Per-file verdicts work for one file at a time. <strong>Sweeper Audit</strong> works for hundreds. It pre-filters via the deletability heuristic so the LLM only judges the ambiguous middle, batches twenty files per prompt (~30× cheaper than per-file), and writes the results to a sortable table. Filter by verdict + confidence threshold, multi-select the obvious wins, send the lot to Quarantine in one click — still reversible for thirty days, still bounded by the protected-prefix list.
+        </p>
+        <figure class="shot">
+          <div class="shot__frame">
+            <img src="assets/screenshots/sweeper-audit.png" alt="MacSweep Sweeper Audit setup screen showing 'Top 100 files' and '≥ 10 MB' selected with a Run audit button." loading="lazy">
+          </div>
+          <figcaption><span class="caption-tag">FIG. 5 ·</span> Pick scope and minimum size, click Run audit. Progress bar streams; results table fills in as verdicts land.</figcaption>
+        </figure>
+      </section>
+
+      <!-- §7 QUARANTINE ─────────────────────────────────────── -->
+      <section class="module" id="quarantine">
+        <p class="kicker">Quarantine · how nothing gets lost</p>
+        <h2 class="module__h2">Move, don't delete. Thirty-day undo on everything.</h2>
+        <p class="module__lede">
+          The whole app is one principle, executed everywhere: <strong>nothing is destroyed without a recoverable copy</strong>. Every "Quarantine" action is a <code>shutil.move</code> into <code>~/.macsweep_quarantine/&lt;timestamp&gt;/</code>. Restore puts the file back at its exact original path. The only call to <code>os.unlink</code> in the codebase runs after a 30-day timer — and it's logged in the quarantine ledger before it fires.
+        </p>
+        <ul class="proof-list">
+          <li><span class="proof-list__bullet">▸</span><b>Hard-blocked paths</b> — <code>/System</code>, <code>/Library</code>, <code>~/Library/Mobile Documents</code>, <code>~/Library/CloudStorage</code>, the quarantine root itself. Refused regardless of caller, regardless of AI verdict.</li>
+          <li><span class="proof-list__bullet">▸</span><b>Atomic moves</b> — same-volume <code>rename(2)</code>, no partial states, no "trash but didn't get reclaimed yet".</li>
+          <li><span class="proof-list__bullet">▸</span><b>One-click restore</b> — Quarantine module shows everything; click Restore and the file is back where it was, original timestamps preserved.</li>
+          <li><span class="proof-list__bullet">▸</span><b>Audit log</b> — every action recorded with original path, size, timestamp, and category. SQLite. Inspectable.</li>
+        </ul>
+      </section>
+
+      <!-- §8 INSTALL ────────────────────────────────────────── -->
+      <section class="module module--install" id="install">
+        <p class="kicker">Install · macOS 11+ · Apple Silicon &amp; Intel</p>
+        <h2 class="module__h2">Forty seconds end-to-end.</h2>
+
+        <ol class="install-steps">
+          <li>
+            <span class="step-num">01</span>
+            <div class="step-body">
+              <h3>Download</h3>
+              <p><a class="dl-link" href="https://github.com/polistician/macsweep/releases/latest" target="_blank" rel="noopener">macsweep-<span data-latest-version>0.1.0</span>.tar.gz</a> from the releases page. ~50 MB. Ad-hoc signed.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num">02</span>
+            <div class="step-body">
+              <h3>Extract &amp; install</h3>
+              <pre class="code"><span class="prompt">$</span> tar -xzf macsweep-<span data-latest-version>0.1.0</span>.tar.gz
+<span class="prompt">$</span> cd macsweep-<span data-latest-version>0.1.0</span>
+<span class="prompt">$</span> ./install.sh</pre>
+              <p class="step-body__note">Sets up the Python venv. Takes ~30 seconds the first time.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num">03</span>
+            <div class="step-body">
+              <h3>Open MacSweep</h3>
+              <p>Right-click <code>MacSweep.app</code> → Open the first time (Gatekeeper warning, expected for ad-hoc-signed apps). After that, double-click works normally. Spotlight finds it.</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-num">04</span>
+            <div class="step-body">
+              <h3>Updates ship in-app</h3>
+              <p>From now on: Settings → <strong>Check for updates</strong>. New versions arrive via GitHub Releases, verified by SHA-256, swapped atomically. Your scan database, config, and quarantine survive every update.</p>
+            </div>
+          </li>
+        </ol>
+
+        <div class="install-cta">
+          <a class="btn-primary btn-primary--big" href="https://github.com/polistician/macsweep/releases/latest/download/macsweep.tar.gz">↓ Download MacSweep <span data-latest-version>v0.1.0</span></a>
+          <a class="btn-ghost" href="https://github.com/polistician/macsweep" target="_blank" rel="noopener">Read the source first ↗</a>
+        </div>
+      </section>
+
+      <!-- footer in-window -->
+      <footer class="window__footer">
+        <p>MacSweep is part of <a href="https://polistician.ai">polistician.ai</a> · <a href="https://github.com/polistician/macsweep">source</a> · MIT licensed · built in Berlin</p>
+      </footer>
+
+    </div>
+  </div>
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>

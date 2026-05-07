@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from . import audit, db, file_detail, file_verdict, group_verdict, grouping, integrator_chat, labels as labels_mod, llm, oauth_chatgpt, projects, quarantine, redundancy, scanner, smart, suggestions, sweep, warmup
+from . import audit, db, file_detail, file_verdict, group_verdict, grouping, integrator_chat, labels as labels_mod, llm, oauth_chatgpt, projects, quarantine, redundancy, scanner, smart, suggestions, sweep, updater, warmup
 
 app = FastAPI(title="MacSweep")
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
@@ -602,6 +602,36 @@ def audit_results(min_confidence: int = 0, verdicts: str = "safe,review,keep", l
 def audit_reset():
     audit.reset()
     return {"phase": "idle"}
+
+
+# ── Self-update (voicetype-style: GitHub Releases tarball) ───────────────────
+@app.get("/api/version")
+def app_version():
+    return {"version": updater.current_version()}
+
+
+@app.get("/api/update/check")
+def update_check():
+    return updater.check_for_update()
+
+
+class UpdateInstallRequest(BaseModel):
+    force: bool = False
+
+
+@app.post("/api/update/install")
+def update_install(req: UpdateInstallRequest):
+    return updater.install_update(force=req.force)
+
+
+@app.get("/api/update/status")
+def update_status():
+    return updater.install_status()
+
+
+@app.post("/api/update/relaunch")
+def update_relaunch():
+    return updater.relaunch()
 
 
 # ── Integrator (third LLM auth path: PKCE-paired ChatGPT via broker) ─────────
