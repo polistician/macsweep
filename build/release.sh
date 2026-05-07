@@ -142,25 +142,29 @@ git push origin HEAD
 git push origin "v$NEW_VERSION"
 
 # 8. GitHub Release
-echo "→ Creating GitHub Release v$NEW_VERSION…"
+# Heredoc tag is quoted ('NOTES') so NOTHING gets expanded inside — no
+# `set -u` traps on stray `$` references in markdown body. We sed in the
+# two values we actually need (version + sha).
+echo "→ Creating GitHub Release v${NEW_VERSION}…"
 NOTES_FILE="$(mktemp)"
-cat > "$NOTES_FILE" <<NOTES
-## MacSweep v$NEW_VERSION
+cat > "$NOTES_FILE" <<'NOTES'
+## MacSweep v__VER__
 
 ### Install
-1. Download \`macsweep-$NEW_VERSION.tar.gz\` from this release.
-2. \`tar -xzf macsweep-$NEW_VERSION.tar.gz && cd macsweep-$NEW_VERSION && ./install.sh\`
-3. Open \`MacSweep.app\` (right-click → Open the first time).
+1. Download `macsweep-__VER__.tar.gz` from this release.
+2. `tar -xzf macsweep-__VER__.tar.gz && cd macsweep-__VER__ && ./install.sh`
+3. Open `MacSweep.app` (right-click → Open the first time).
 
 ### Update an existing install
 Inside MacSweep: Settings → **Check for updates** → click → restart.
 
 ### Verify integrity
-\`\`\`
-shasum -a 256 macsweep-$NEW_VERSION.tar.gz
-# expect: $SHA
-\`\`\`
+```
+shasum -a 256 macsweep-__VER__.tar.gz
+# expect: __SHA__
+```
 NOTES
+sed -i.bak -e "s|__VER__|${NEW_VERSION}|g" -e "s|__SHA__|${SHA}|g" "$NOTES_FILE" && rm -f "${NOTES_FILE}.bak"
 
 gh release create "v$NEW_VERSION" \
   "$TAR" \
