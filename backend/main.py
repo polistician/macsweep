@@ -355,6 +355,16 @@ def action_files(slug: str, limit: int = 500):
                 WHERE p.last_activity < ? AND f.category='dev_artifact'
                 ORDER BY f.size DESC LIMIT ?
             """, (cutoff, limit)).fetchall()
+        elif slug.startswith("project_artifacts:"):
+            # All dev_artifact files inside one project, regardless of age.
+            # Used by the Files > Projects drill-down — recent active projects
+            # weren't showing anything because they failed the stale cutoff.
+            project_path = slug.split(":", 1)[1]
+            rows = conn.execute("""
+                SELECT path, size, mtime, atime, subcategory FROM files
+                WHERE path LIKE ? AND category='dev_artifact'
+                ORDER BY size DESC LIMIT ?
+            """, (project_path + '/%', limit)).fetchall()
         elif slug == "old_logs":
             cutoff = time.time() - 90 * 86_400
             rows = conn.execute(

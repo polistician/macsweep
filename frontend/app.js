@@ -2765,19 +2765,22 @@ function shortPath(p) {
 
 async function fetchGroups(action) {
   if (action.startsWith('project:')) {
-    // Project drill-down — list all build artifacts within a project as one group.
+    // Project drill-down — every build artifact in this project, regardless
+    // of age. Was previously gated on the 180-day stale cutoff, which hid
+    // recently-active projects entirely (e.g. focusdial last touched 48 days
+    // ago had 39 MB of venv artifacts but the drawer came up empty).
     const path = action.slice('project:'.length);
-    const all = await api('/api/action/stale_artifacts');
-    const files = all.filter(r => r.path.startsWith(path + '/'));
-    if (!files.length) return [];
+    const slug = `project_artifacts:${path}`;
+    const all = await api(`/api/action/${encodeURIComponent(slug)}?limit=2000`);
+    if (!all.length) return [];
     return [{
       name: path.split('/').pop(),
       path,
-      size: files.reduce((a, b) => a + b.size, 0),
-      files: files.length,
+      size: all.reduce((a, b) => a + b.size, 0),
+      files: all.length,
       regenerable: true,
-      last_touched: Math.max(...files.map(f => f.mtime)),
-      samples: files.slice(0, 3).map(f => f.path),
+      last_touched: Math.max(...all.map(f => f.mtime)),
+      samples: all.slice(0, 3).map(f => f.path),
     }];
   }
   return api(`/api/action/${action}/groups?limit=80`);
