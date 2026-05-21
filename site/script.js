@@ -66,6 +66,15 @@
         const txt = el.textContent;
         el.textContent = txt.startsWith('v') ? `v${v}` : v;
       });
+      // Point the download CTA at the actual versioned release asset.
+      // (GitHub doesn't expose an unversioned "latest" alias for assets whose
+      // filename includes the version, so we resolve it here.)
+      const asset = (d.assets || []).find(a => /^macsweep-[\d.]+\.tar\.gz$/.test(a.name));
+      const url = asset ? asset.browser_download_url
+                        : `https://github.com/polistician/macsweep/releases/download/v${v}/macsweep-${v}.tar.gz`;
+      document.querySelectorAll('[data-download-link]').forEach(el => {
+        el.setAttribute('href', url);
+      });
     })
     .catch(() => {});
 })();
